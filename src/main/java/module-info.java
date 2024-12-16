@@ -10,6 +10,7 @@ module org.example.demo {
     requires org.kordamp.ikonli.javafx;
     requires org.kordamp.ikonli.fontawesome5;
     requires javafx.controls;
+    requires JTransforms;
 
 
     // Öffne explizit nur org.example.demo für Reflection (z. B. JavaFX)

@@ -20,7 +20,6 @@ import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.javafx.FontIcon;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 
 /**
  * A JavaFX application for a radio player with search, favorites,
@@ -41,6 +41,7 @@ public class Main extends Application {
     // VLCJ media player factory and media player instance
     private MediaPlayerFactory mediaPlayerFactory;
     private MediaPlayer mediaPlayer;
+    private final AudioProcessor audioProcessor = new AudioProcessor();
 
     // Lists to hold favorite stations and search results
     private final ObservableList<String> favoriteStations = FXCollections.observableArrayList();
@@ -241,8 +242,13 @@ public class Main extends Application {
         }
         mediaPlayer.media().play(url);
         nowPlayingLabel.setText("Now Playing: " + stationName);
+
+        // Start audio capture for FFT
+        audioProcessor.start();
+
         startVisualizer();
     }
+
 
     /**
      * Stops the currently playing stream and visualizer.
@@ -265,16 +271,34 @@ public class Main extends Application {
             visualizerTimeline.stop();
         }
 
-        int totalBars = 50;
+        int totalBars = 50; // Number of visualizer bars
         double barWidth = visualizerCanvas.getWidth() / totalBars;
 
         visualizerTimeline = new Timeline(new KeyFrame(Duration.millis(50), e -> {
             gc.clearRect(0, 0, visualizerCanvas.getWidth(), visualizerCanvas.getHeight());
             double canvasHeight = visualizerCanvas.getHeight();
+
+            // Fetch FFT magnitudes
+            double[] fftData = audioProcessor.getFftMagnitudes();
+
+            // Skip the DC component (index 0)
+            double[] magnitudes = Arrays.copyOfRange(fftData, 1, fftData.length);
+
+            // Normalize magnitudes
+            double maxMagnitude = Arrays.stream(magnitudes).max().orElse(1.0);
+
+            // Draw bars
             for (int i = 0; i < totalBars; i++) {
-                double barHeight = Math.random() * canvasHeight;
+                int index = i * magnitudes.length / totalBars; // Map bar to FFT bins
+                double magnitude = magnitudes[index]; // Fetch magnitude for this bar
+
+                // Scale magnitude to canvas height
+                double barHeight = (magnitude / maxMagnitude) * canvasHeight;
+
                 double x = i * barWidth;
                 double y = canvasHeight - barHeight;
+
+                // Set bar color
                 gc.setFill(javafx.scene.paint.Color.hsb((i * 360.0 / totalBars), 1.0, 1.0));
                 gc.fillRect(x, y, barWidth - 2, barHeight);
             }
@@ -283,6 +307,10 @@ public class Main extends Application {
         visualizerTimeline.setCycleCount(Timeline.INDEFINITE);
         visualizerTimeline.play();
     }
+
+
+
+
 
     /**
      * Sets up a clock that displays the current time.
