@@ -16,7 +16,7 @@ JavaWebRadio is a modern, feature-packed radio streaming app that combines vibra
 
 🔊 Volume Control: Easily adjust playback with intuitive sliders.
 
-//WIP🎨 Bar Visualizer: Experience stunning, real-time audio visualizations that bring your music to life.
+🎨 Bar Visualizer: Experience stunning, real-time audio visualizations that bring your music to life.
 
 🕒 Built-in Clock: Stay on time with a sleek, integrated digital clock.
 
