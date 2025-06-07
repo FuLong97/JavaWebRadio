@@ -1,0 +1,5 @@
+vlcj==4.7.1
+javafx==17.0.6
+junit==5.10.2
+discord-rpc==1.6.2
+jna==5.13.0
