@@ -1,49 +1,72 @@
 # JavaWebRadio
 
+A modern, feature-packed internet radio player built with JavaFX. Search thousands of stations worldwide, save your favorites, and enjoy synced audio visualizations — all without any external dependencies.
 
+## What's New in v2.0
 
-🎵 JavaWebRadio
-Brighten your music experience with Radiant Player!
+Version 2.0 is a complete rewrite of the audio engine. VLC is no longer required. The app now uses pure Java audio decoding, which means users just download and run — no extra installs needed.
 
+Other improvements include DNS-based server discovery for the Radio Browser API (automatically finds working servers), a synced FFT visualizer that feeds directly from the audio stream instead of capturing from the microphone, proper thread management, and URL-encoded search queries.
 
-JavaWebRadio is a modern, feature-packed radio streaming app that combines vibrant audio visualizations with powerful tools to explore, manage, and enjoy your favorite stations. Whether you're discovering new tunes or tuning into your all-time favorites, JavaWebRadio has you covered.
+## Features
 
+**Global Search** — Find stations worldwide using the Radio Browser API with automatic server failover. Results are sorted by popularity and show codec info.
 
-✨ Features
-🌍 Global Search: Instantly find stations worldwide using the integrated RadioBrowser API.
+**Favorites** — Save, organize, and quickly access your favorite stations. Stored locally in a simple text file.
 
-❤️ Favorites Management: Save, search, and organize your favorite stations effortlessly.
+**Audio Playback** — Supports MP3, AAC, WAV, OGG Vorbis, and FLAC streams through pure Java decoders. No VLC, no GStreamer, no native installs.
 
-🔊 Volume Control: Easily adjust playback with intuitive sliders.
+**Synced Visualizer** — Real-time FFT bar visualizer that reads directly from the audio stream. Hanning window, logarithmic amplitude scaling, and frequency boosting for a balanced display.
 
-🎨 Bar Visualizer: Experience stunning, real-time audio visualizations that bring your music to life.
+**Volume Control** — Synced sliders across Search and Favorites tabs with real-time PCM volume scaling.
 
-🕒 Built-in Clock: Stay on time with a sleek, integrated digital clock.
+**Dark Theme** — Eye-friendly dark interface for comfortable listening.
 
-🌙 Dark Mode: Enjoy an eye-friendly dark theme for a seamless listening experience.
+**Built-in Clock** — Digital clock display in the status bar.
 
-🚀 Why Collaborate?
+## Requirements
 
-JavaWebRadio is an open-source project designed to bring joy and creativity to music streaming. Join us in enhancing 
-the experience with new features, exciting visualizers, or design improvements.
-
-
-# Radio Player with Visualizer
-
-This project is a JavaFX-based radio player with the following features:
-- **Search functionality**: Look up radio stations online.
-- **Favorites**: Save and manage favorite stations.
-- **Real-time visualizer**: Displays a dynamic bar visualizer synchronized with the audio.
-- **Volume control**: Adjust playback volume.
-- **Clock display**: Shows the current time on the UI.
+Java 21 or newer. That's it.
 
 ## How to Run
-- Install Java 17+.
-- Include `vlcj`, `FontAwesomeFX`, and other dependencies in your project.
-- Compile and run the `Main.java` file.
+
+Clone the repo and run with Maven:
+
+```bash
+git clone https://github.com/FuLong97/JavaWebRadio.git
+cd JavaWebRadio
+./mvnw clean compile
+./mvnw javafx:run
+```
+
+On Windows use `.\mvnw` instead of `./mvnw`.
+
+## Project Structure
+
+```
+src/main/java/org/example/
+├── Main.java                  — UI, tabs, visualizer, app lifecycle
+├── UniversalAudioPlayer.java  — Pure Java audio playback via Sound SPI
+├── AudioProcessor.java        — FFT analysis for visualization
+└── RadioBrowserAPI.java       — DNS-based server discovery, search
+```
+
+## Tech Stack
+
+JavaFX 21 for the UI, Java Sound SPI with mp3spi, JOrbis (OGG), and JFlac (FLAC) for audio decoding, JTransforms for FFT, Jackson for JSON parsing, and Ikonli for icons. All dependencies are managed through Maven and bundled automatically.
 
 ## Contributing
-Contributions are welcome! Open an issue or submit a pull request.
+
+Contributions are welcome. Some areas that could use work:
+
+- Visualizer improvements (different modes, smoother animations)
+- Station metadata display (bitrate, genre, country)
+- Playlist/queue support
+- Equalizer
+- System tray integration
+
+Open an issue or submit a pull request.
 
 ## License
-[MIT](LICENSE)
+
+MIT
