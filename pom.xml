@@ -30,7 +30,7 @@
 
     <properties>
         <javafx.version>17.0.6</javafx.version>
-        <jna.version>5.13.0</jna.version>
+        <jna.version>5.18.1</jna.version>
         <vlcj.version>4.7.1</vlcj.version>
         <junit.version>5.10.2</junit.version>
         <discord.rpc.version>1.6.2</discord.rpc.version>
@@ -82,7 +82,7 @@
         <dependency>
             <groupId>com.github.wendykierp</groupId>
             <artifactId>JTransforms</artifactId>
-            <version>3.1</version>
+            <version>3.2</version>
         </dependency>
 
         <!-- JUnit for Testing -->
@@ -107,12 +107,12 @@
         <dependency>
             <groupId>org.kordamp.ikonli</groupId>
             <artifactId>ikonli-javafx</artifactId>
-            <version>12.3.1</version>
+            <version>12.4.0</version>
         </dependency>
         <dependency>
             <groupId>org.kordamp.ikonli</groupId>
             <artifactId>ikonli-fontawesome5-pack</artifactId>
-            <version>12.3.1</version>
+            <version>12.4.0</version>
         </dependency>
 
 
