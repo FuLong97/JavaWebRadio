@@ -2,6 +2,8 @@
 
 A modern, feature-packed internet radio player built with JavaFX. Search thousands of stations worldwide, save your favorites, and enjoy synced audio visualizations — all without any external dependencies.
 
+![Radio Player v2.0](screenshot.png)
+
 ## What's New in v2.0
 
 Version 2.0 is a complete rewrite of the audio engine. VLC is no longer required. The app now uses pure Java audio decoding, which means users just download and run — no extra installs needed.
