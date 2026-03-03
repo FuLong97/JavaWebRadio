@@ -252,63 +252,47 @@ public class Main extends Application {
     }
 
     private void startVisualizer() {
-        if (visualizerTimeline != null) visualizerTimeline.stop();
+    if (visualizerTimeline != null) visualizerTimeline.stop();
 
-        int totalBars = 50;
-        double barWidth = visualizerCanvas.getWidth() / totalBars;
+    // Number of bars in the visualizer
+    int totalBars = 40; 
+    double spacing = 2;
+    double barWidth = (visualizerCanvas.getWidth() / totalBars);
 
-        visualizerTimeline = new Timeline(new KeyFrame(Duration.millis(33), e -> {
-            gc.clearRect(0, 0, visualizerCanvas.getWidth(), visualizerCanvas.getHeight());
-            double canvasHeight = visualizerCanvas.getHeight();
+    visualizerTimeline = new Timeline(new KeyFrame(Duration.millis(33), e -> {
+        gc.clearRect(0, 0, visualizerCanvas.getWidth(), visualizerCanvas.getHeight());
+        double canvasHeight = visualizerCanvas.getHeight();
 
-            double[] fftData = audioProcessor.getFftMagnitudes();
-            if (fftData == null || fftData.length < 2) return;
+        // Get the pre-processed bars from the processor
+        double[] barMagnitudes = audioProcessor.getVisualizerBars(totalBars);
+        
+        if (barMagnitudes == null) return;
 
-            double[] magnitudes = Arrays.copyOfRange(fftData, 1, fftData.length);
-            if (magnitudes.length == 0) return;
+        for (int i = 0; i < barMagnitudes.length; i++) {
+            // The processor returns values between 0.0 and 1.0
+            double magnitude = barMagnitudes[i];
+            
+            // Calculate height based on canvas
+            double barHeight = magnitude * canvasHeight;
 
-            // Use lower 60% of spectrum — upper bins are mostly silence
-            int usableBins = (int) (magnitudes.length * 0.6);
-            if (usableBins < totalBars) usableBins = magnitudes.length;
+            // Optional: prevent bars from being completely invisible
+            barHeight = Math.max(barHeight, 2); 
 
-            double binsPerBar = (double) usableBins / totalBars;
+            double x = i * barWidth;
+            double y = canvasHeight - barHeight;
 
-            for (int i = 0; i < totalBars; i++) {
-                int startBin = (int) (i * binsPerBar);
-                int endBin = (int) ((i + 1) * binsPerBar);
-                endBin = Math.min(endBin, usableBins);
-                if (endBin <= startBin) endBin = startBin + 1;
-
-                // Average bins for this bar
-                double sum = 0;
-                int count = 0;
-                for (int j = startBin; j < endBin && j < magnitudes.length; j++) {
-                    sum += magnitudes[j];
-                    count++;
-                }
-                double magnitude = count > 0 ? sum / count : 0;
-
-                // Boost higher frequencies — they naturally have less energy
-                double freqBoost = 1.0 + (i * 2.0 / totalBars);
-                magnitude *= freqBoost;
-
-                // Log amplitude scaling
-                double barHeight = 0;
-                if (magnitude > 0.001) {
-                    barHeight = (Math.log10(1 + magnitude * 10) / Math.log10(1 + 200)) * canvasHeight;
-                    barHeight = Math.min(barHeight, canvasHeight);
-                }
-
-                double x = i * barWidth;
-                double y = canvasHeight - barHeight;
-
-                gc.setFill(javafx.scene.paint.Color.hsb((i * 360.0 / totalBars), 1.0, 1.0));
-                gc.fillRect(x, y, barWidth - 2, barHeight);
-            }
-        }));
-        visualizerTimeline.setCycleCount(Timeline.INDEFINITE);
-        visualizerTimeline.play();
-    }
+            // Draw with a nice gradient effect based on frequency (HSB)
+            // 0 = Red (Bass), 240 = Blue (Treble)
+            double hue = (i * 240.0 / totalBars); 
+            gc.setFill(javafx.scene.paint.Color.hsb(hue, 0.8, 0.9));
+            
+            // Draw the bar (minus spacing for a clean look)
+            gc.fillRect(x, y, barWidth - spacing, barHeight);
+        }
+    }));
+    visualizerTimeline.setCycleCount(Timeline.INDEFINITE);
+    visualizerTimeline.play();
+}
 
     private void setupClock() {
         Timeline clock = new Timeline(new KeyFrame(Duration.seconds(1), e ->

@@ -5,9 +5,7 @@ import java.util.Arrays;
 
 /**
  * Performs FFT analysis on audio data for visualization.
- *
- * Receives PCM audio data directly from UniversalAudioPlayer via feedData().
- * No microphone capture — visualizer is perfectly synced with playback.
+ * Supports both raw linear magnitudes and grouped logarithmic bars.
  */
 public class AudioProcessor {
     private static final int BUFFER_SIZE = 2048;
@@ -15,11 +13,12 @@ public class AudioProcessor {
     private final double[] smoothedMagnitudes = new double[BUFFER_SIZE / 2];
     private final DoubleFFT_1D fft = new DoubleFFT_1D(BUFFER_SIZE);
 
-    private static final double SMOOTHING = 0.1;
+    // Adjust SMOOTHING: 0.1 is slow/smooth, 0.7 is fast/reactive.
+    private static final double SMOOTHING = 0.4; 
+    private static final double SAMPLE_RATE = 44100.0;
 
     /**
      * Feed raw PCM audio data (16-bit signed, little-endian) for FFT analysis.
-     * Called by UniversalAudioPlayer during playback.
      */
     public void feedData(byte[] buffer, int bytesRead) {
         int samples = Math.min(bytesRead / 2, BUFFER_SIZE);
@@ -28,46 +27,47 @@ public class AudioProcessor {
         double[] audioData = new double[BUFFER_SIZE];
         double sum = 0.0;
 
-        // Convert 16-bit little-endian bytes to normalized doubles
-        for (int i = 0; i < samples && i < BUFFER_SIZE; i++) {
+        // 1. Convert PCM to Normalized Double
+        for (int i = 0; i < samples; i++) {
             int pos = i * 2;
             if (pos + 1 >= bytesRead) break;
             int low = buffer[pos] & 0xFF;
             int high = buffer[pos + 1];
-            audioData[i] = (high << 8 | low) / 32768.0;
+            // Interpret as 16-bit signed short then normalize to -1.0 to 1.0
+            audioData[i] = (short) ((high << 8) | low) / 32768.0;
             sum += audioData[i];
         }
 
-        // Remove DC offset
+        // 2. Remove DC Offset (centers the wave at 0)
         double dcOffset = sum / samples;
         for (int i = 0; i < samples; i++) {
             audioData[i] -= dcOffset;
         }
 
-        // Hanning window for cleaner FFT
+        // 3. Hanning Window (smooths the edges of the sample for cleaner FFT)
         for (int i = 0; i < samples; i++) {
             audioData[i] *= 0.5 * (1 - Math.cos(2 * Math.PI * i / (samples - 1)));
         }
 
-        // Perform FFT
+        // 4. Perform FFT
         fft.realForward(audioData);
 
-        // Calculate magnitudes with smoothing
+        // 5. Calculate Magnitudes with Temporal Smoothing
         synchronized (fftMagnitudes) {
             for (int i = 0; i < fftMagnitudes.length; i++) {
                 double real = audioData[2 * i];
                 double imag = (2 * i + 1 < BUFFER_SIZE) ? audioData[2 * i + 1] : 0;
+                
                 double magnitude = Math.sqrt(real * real + imag * imag);
 
-                smoothedMagnitudes[i] = smoothedMagnitudes[i] * SMOOTHING + magnitude * (1 - SMOOTHING);
+                // Smooth the transition so bars don't jitter
+                smoothedMagnitudes[i] = (smoothedMagnitudes[i] * SMOOTHING) + (magnitude * (1 - SMOOTHING));
                 fftMagnitudes[i] = smoothedMagnitudes[i];
             }
         }
     }
 
-    /**
-     * Get the latest FFT magnitudes for visualization.
-     */
+
     public double[] getFftMagnitudes() {
         synchronized (fftMagnitudes) {
             return fftMagnitudes.clone();
@@ -75,8 +75,59 @@ public class AudioProcessor {
     }
 
     /**
-     * Reset magnitudes (called on stop).
+     * Groups FFT bins into 'numBars' using a logarithmic scale.
+     * This ensures Bass, Mids, and Treble are all represented visually.
      */
+public double[] getVisualizerBars(int numBars) {
+    double[] bars = new double[numBars];
+    double[] currentMags;
+
+    synchronized (fftMagnitudes) {
+        currentMags = fftMagnitudes.clone();
+    }
+
+    double minFreq = 40;   
+    double maxFreq = 15000; 
+    
+    for (int i = 0; i < numBars; i++) {
+        double lowFreq = minFreq * Math.pow(maxFreq / minFreq, (double) i / numBars);
+        double highFreq = minFreq * Math.pow(maxFreq / minFreq, (double) (i + 1) / numBars);
+
+        int lowBin = (int) Math.floor(lowFreq / (SAMPLE_RATE / BUFFER_SIZE));
+        int highBin = (int) Math.ceil(highFreq / (SAMPLE_RATE / BUFFER_SIZE));
+        
+        lowBin = Math.max(1, Math.min(lowBin, currentMags.length - 1));
+        highBin = Math.max(lowBin + 1, Math.min(highBin, currentMags.length));
+
+        double sum = 0;
+        for (int j = lowBin; j < highBin; j++) {
+            sum += currentMags[j];
+        }
+        double avg = sum / (highBin - lowBin);
+
+        
+        
+ 
+        double globalGain = 0.1; 
+
+        // 2. Balanced Frequency Boost
+        // This ensures the highs move, but don't explode.
+        double freqBoost = 1.0 + (Math.pow(i, 1.5) / Math.pow(numBars, 1.5)) * 2.0;
+        
+        // 3. Logarithmic Compression (The "Bounciness")
+        // Math.pow to make the bars more "exponential" so they stay low 
+        // until a loud beat hits.
+        double val = Math.log10(1 + avg * freqBoost * globalGain) * 1.5;
+        val = Math.pow(val, 1.2); // Squashes the mid-range values down
+        
+        // 4. Final Clamp
+        bars[i] = Math.max(0.01, Math.min(1.0, val));
+        
+        // --- NEW TUNING LOGIC END ---
+    }
+    return bars;
+}
+
     public void reset() {
         synchronized (fftMagnitudes) {
             Arrays.fill(fftMagnitudes, 0);
@@ -84,11 +135,6 @@ public class AudioProcessor {
         }
     }
 
-    public void start() {
-        // No-op — data is fed directly via feedData()
-    }
-
-    public void stop() {
-        reset();
-    }
+    public void start() {}
+    public void stop() { reset(); }
 }
