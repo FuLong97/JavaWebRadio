@@ -47,6 +47,9 @@ public class UniversalAudioPlayer {
 
     public void stop() {
         running = false;
+        Thread threadToJoin = playerThread;
+        playerThread = null;
+
         if (javaLine != null) {
             try {
                 javaLine.stop();
@@ -54,11 +57,18 @@ public class UniversalAudioPlayer {
             } catch (Exception ignored) {}
             javaLine = null;
         }
-        if (playerThread != null) {
-            playerThread.interrupt();
-            playerThread = null;
+        if (threadToJoin != null) {
+            threadToJoin.interrupt();
+            try{
+                threadToJoin.join(2000);
+
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
         }
-        currentStationName = "";
+    }
+
+    currentStationName = "";
+
     }
 
     public void setVolume(double vol) {
