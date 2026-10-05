@@ -9,6 +9,6 @@ module org.example.demo {
     requires org.kordamp.ikonli.fontawesome5;
     requires JTransforms;
 
-    opens org.example to javafx.fxml;
+    opens org.example to javafx.fxml, com.fasterxml.jackson.databind;
     exports org.example;
 }

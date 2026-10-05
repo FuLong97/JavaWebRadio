@@ -1,142 +1,69 @@
 package org.example;
-
-import java.net.InetAddress;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import com.fasterxml.jackson.databind.*;
+import java.io.IOException;
+import java.net.*;
+import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.*;
 
-/**
- * Client for the Radio Browser API.
- * Uses DNS-based server discovery as recommended by the official docs.
- * Automatically discovers live servers and tries each until one responds.
- */
 public class RadioBrowserAPI {
-
-    private static final int RESULT_LIMIT = 50;
-    private static final int TIMEOUT_SECONDS = 10;
-
-    private final HttpClient client = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
+            .followRedirects(HttpClient.Redirect.NORMAL).build();
     private final ObjectMapper mapper = new ObjectMapper();
-
-    private List<String> serverUrls = null;
-
-    private List<String> discoverServers() {
-        List<String> servers = new ArrayList<>();
+    private volatile List<String> servers;
+    private List<String> servers() throws InterruptedException {
+        if (servers != null) return servers;
+        Set<String> discovered = new LinkedHashSet<>();
         try {
-            InetAddress[] addresses = InetAddress.getAllByName("all.api.radio-browser.info");
-            for (InetAddress addr : addresses) {
-                try {
-                    String hostname = addr.getCanonicalHostName();
-                    if (hostname != null && !hostname.equals(addr.getHostAddress())) {
-                        String serverUrl = "https://" + hostname + "/json";
-                        if (!servers.contains(serverUrl)) {
-                            servers.add(serverUrl);
-                        }
-                    }
-                } catch (Exception ignored) {}
+            for (InetAddress address : InetAddress.getAllByName("all.api.radio-browser.info")) {
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+                String host = address.getCanonicalHostName();
+                if (!host.equals(address.getHostAddress())) discovered.add("https://" + host + "/json");
             }
-        } catch (Exception e) {
-            System.err.println("DNS discovery failed: " + e.getMessage());
-        }
-
-        addIfMissing(servers, "https://de2.api.radio-browser.info/json");
-        addIfMissing(servers, "https://nl1.api.radio-browser.info/json");
-        addIfMissing(servers, "https://fi1.api.radio-browser.info/json");
-        addIfMissing(servers, "https://all.api.radio-browser.info/json");
-
-        Collections.shuffle(servers);
+        } catch (IOException ignored) { }
+        discovered.addAll(List.of("https://de2.api.radio-browser.info/json", "https://nl1.api.radio-browser.info/json", "https://fi1.api.radio-browser.info/json"));
+        List<String> result = new ArrayList<>(discovered);
+        Collections.shuffle(result);
+        servers = List.copyOf(result);
         return servers;
     }
-
-    private void addIfMissing(List<String> servers, String url) {
-        if (!servers.contains(url)) servers.add(url);
-    }
-
-    private List<String> getServers() {
-        if (serverUrls == null) serverUrls = discoverServers();
-        return serverUrls;
-    }
-
-    private void refreshServers() {
-        serverUrls = null;
-    }
-
-    public List<String> fetchStations(String query) {
-        String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
-        String path = "/stations/search?name=" + encodedQuery
-                + "&limit=" + RESULT_LIMIT
-                + "&hidebroken=true"
-                + "&order=clickcount"
-                + "&reverse=true";
-
-        List<String> result = tryServers(getServers(), path);
-        if (result != null) return result;
-
-        refreshServers();
-        result = tryServers(getServers(), path);
-        if (result != null) return result;
-
-        System.err.println("All Radio Browser servers failed!");
-        return new ArrayList<>();
-    }
-
-    private List<String> tryServers(List<String> servers, String path) {
-        for (String server : servers) {
+    public List<Station> fetchStations(String query) throws IOException, InterruptedException {
+        String path = "/stations/search?name=" + URLEncoder.encode(query, StandardCharsets.UTF_8)
+                + "&limit=50&hidebroken=true&order=clickcount&reverse=true";
+        long deadline = System.nanoTime() + Duration.ofSeconds(25).toNanos();
+        IOException failure = null;
+        for (String server : servers()) {
+            if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) break;
             try {
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(server + path))
-                        .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
-                        .header("User-Agent", "JavaWebRadio/2.0")
-                        .GET()
-                        .build();
-
+                HttpRequest request = HttpRequest.newBuilder(URI.create(server + path))
+                        .timeout(Duration.ofNanos(Math.min(remaining, Duration.ofSeconds(7).toNanos())))
+                        .header("User-Agent", "JavaWebRadio/2.1").GET().build();
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() == 200) {
-                    return parseStations(response.body());
-                }
-            } catch (Exception e) {
-                System.err.println(server + " failed: " + e.getMessage());
-            }
+                if (response.statusCode() != 200) throw new IOException("Server returned " + response.statusCode());
+                return parseStations(response.body());
+            } catch (IOException e) { failure = e; }
         }
-        return null;
+        servers = null;
+        throw new IOException("Station search is unavailable. Check your connection and retry.", failure);
     }
-
-    private List<String> parseStations(String json) {
-        List<String> stations = new ArrayList<>();
-        try {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> data = mapper.readValue(json, List.class);
-
-            for (Map<String, Object> station : data) {
-                String name = (String) station.get("name");
-                String urlStream = (String) station.get("url");
-                String codec = (String) station.get("codec");
-
-                if (name != null && urlStream != null && !urlStream.isBlank()) {
-                    String entry = name.trim();
-                    if (codec != null && !codec.isBlank()) {
-                        entry += " [" + codec.toUpperCase() + "]";
-                    }
-                    entry += " - " + urlStream.trim();
-                    stations.add(entry);
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error parsing stations: " + e.getMessage());
+    List<Station> parseStations(String json) throws IOException {
+        JsonNode data = mapper.readTree(json);
+        if (data == null || !data.isArray()) throw new IOException("Invalid station response");
+        List<Station> result = new ArrayList<>(); Set<String> seen = new HashSet<>();
+        for (JsonNode row : data) {
+            String url = row.path("url_resolved").asText("");
+            if (url.isBlank()) url = row.path("url").asText("");
+            try {
+                URI uri = URI.create(url);
+                if (uri.getHost() == null || !("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))) continue;
+            } catch (IllegalArgumentException e) { continue; }
+            Station station = new Station(row.path("stationuuid").asText(""), row.path("name").asText(""), url,
+                    row.path("country").asText(""), row.path("tags").asText(""), row.path("codec").asText(""));
+            if (seen.add(station.key())) result.add(station);
         }
-        return stations;
+        return result;
     }
 }
