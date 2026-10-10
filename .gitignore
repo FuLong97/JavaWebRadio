@@ -37,9 +37,9 @@ build/
 ### Mac OS ###
 .DS_Store
 .idea/
-dependency-reduced-pom.xml
-favorites.txt
-favorites.json
+/dependency-reduced-pom.xml
+/favorites.txt
+/favorites.json
 
 # Local installation files
 /.maven/
