@@ -2,7 +2,7 @@
 
 A modern, feature-packed internet radio player built with JavaFX. Search thousands of stations worldwide, save your favorites, and enjoy synced audio visualizations — all without any external dependencies.
 
-![JavaWebRadio 2.1](updated-interface.png)
+![JavaWebRadio 2.1](docs/updated-interface.png)
 
 ## What's New in v2.1
 
